@@ -720,6 +720,22 @@ print(f"Odchylenie standardowe różnic: {returns_diff.std():.2f}")
 print(f"Maksymalna różnica: {returns_diff.max():.2f}")
 print(f"Minimalna różnica: {returns_diff.min():.2f}")
 
+# Definicja zmiennych dla modeli
+n_input = 60  # Długość sekwencji wejściowej
+batch_size = 32  # Rozmiar batcha
+features_with_onehot = ['Close']  # Lista cech
+target = 'Close'  # Zmienna docelowa
+
+# Funkcja pomocnicza do konwersji dat
+def convert_to_days(date_str, min_date):
+    date = pd.to_datetime(date_str)
+    return (date - min_date).days
+
+# Przygotowanie danych X i y
+X = df[features_with_onehot].values
+X_without_onehot = df[['Close']].values
+y = df[target].values
+
 # ====== SEKCJA 1: PRZYGOTOWANIE DANYCH DLA MODELI ======
 
 # Przygotowanie danych do treningu
@@ -791,11 +807,13 @@ y_train_dji, y_test_dji = y_dji[:train_size_dji], y_dji[train_size_dji:]
 # ====== SEKCJA 2: MODEL LSTM ======
 print("\n=== Model LSTM ===")
 # Model LSTM dla SPX
-lstm_model = Sequential([
-    LSTM(64, activation='relu', input_shape=(look_back, n_features)),
-    Dropout(0.2),
-    Dense(32, activation='relu'),
-    Dense(1)
+lstm_model = keras.Sequential([
+    layers.Bidirectional(layers.LSTM(256, activation='tanh', return_sequences=True), 
+                        input_shape=(n_input, X_scaled.shape[1])),
+    layers.Dropout(0.2),
+    layers.Bidirectional(layers.LSTM(128, activation='tanh')),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(1)
 ])
 
 # Konfiguracja harmonogramu uczenia
@@ -894,18 +912,19 @@ print(f"Wymiary X_train_spx_seq: {X_train_spx_seq.shape}")
 print(f"Wymiary y_train_spx_seq: {y_train_spx_seq.shape}")
 
 # Model RNN
-rnn_model = Sequential([
-    SimpleRNN(128, input_shape=(sequence_length, n_features), return_sequences=False),
-    Dropout(0.2),
-    Dense(64, activation='relu'),
-    Dense(1)
+rnn_model = keras.Sequential([
+    layers.SimpleRNN(128, activation='tanh', return_sequences=True, input_shape=(n_input, X_scaled.shape[1])),
+    layers.Dropout(0.2),
+    layers.SimpleRNN(64, activation='tanh'),
+    layers.Dense(32, activation='relu'),
+    layers.Dense(1)
 ])
 
 # Kompilacja modelu RNN
 rnn_model.compile(
     optimizer=AdamW(learning_rate=0.001),
-    loss='mse',
-    metrics=['mae', 'mse']
+    loss='mean_squared_error',
+    metrics=['mae', MeanSquaredError()]
 )
 
 # Zmodyfikuj sekcję treningu RNN
@@ -922,14 +941,14 @@ rnn_model, rnn_history = load_or_train_model(
 # ====== SEKCJA 4: MODEL BLSTM ======
 print("\n=== Model BLSTM ===")
 # Model BLSTM dla SPX
-blstm_model = Sequential([
-    Bidirectional(LSTM(128, activation='relu', return_sequences=True), input_shape=(look_back, n_features)),
-    Dropout(0.2),
-    Bidirectional(LSTM(64, activation='relu', return_sequences=True)),
-    Dropout(0.2),
-    Bidirectional(LSTM(32, activation='relu')),
-    Dense(16, activation='relu'),
-    Dense(1)
+blstm_model = keras.Sequential([
+    layers.Bidirectional(layers.LSTM(128, activation='relu', return_sequences=True), input_shape=(look_back, n_features)),
+    layers.Dropout(0.2),
+    layers.Bidirectional(layers.LSTM(64, activation='relu', return_sequences=True)),
+    layers.Dropout(0.2),
+    layers.Bidirectional(layers.LSTM(32, activation='relu')),
+    layers.Dense(16, activation='relu'),
+    layers.Dense(1)
 ])
 
 # Kompilacja modelu BLSTM
@@ -1053,23 +1072,29 @@ test_generator = TimeseriesGenerator(X_test_seq, y_test_seq, length=n_input, bat
 train_generator_without_onehot = TimeseriesGenerator(X_train_seq_without_onehot, y_train_seq, length=n_input, batch_size=batch_size)
 test_generator_without_onehot = TimeseriesGenerator(X_test_seq_without_onehot, y_test_seq, length=n_input, batch_size=batch_size)
 
+# Definicja modelu1
+model1 = keras.Sequential([
+    layers.LSTM(128, activation='tanh', return_sequences=True, input_shape=(n_input, X_scaled.shape[1])),
+    layers.Dropout(0.2),
+    layers.LSTM(64, activation='tanh'),
+    layers.Dense(32, activation='relu'),
+    layers.Dense(1)
+])
 
-
-initial_learning_rate = 0.001
-decay_steps = 1000
-lr_schedule = CosineDecay(
-    initial_learning_rate=initial_learning_rate,
-    decay_steps=decay_steps
-)
-
-optimizer = AdamW(
-    learning_rate=lr_schedule,
+# Definicja optimizer2
+optimizer2 = AdamW(
+    learning_rate=0.001,
     weight_decay=0.01
 )
 
-cs=['mae', 'mape', MeanSquaredError(), MeanAbsoluteError()]
+# Kompilacja modelu1
+model1.compile(
+    optimizer=optimizer2,
+    loss='mean_squared_error',
+    metrics=[MeanSquaredError(), MeanAbsoluteError(), R2Score()]
+)
 
-
+# Definicja modelu LSTM bez one-hot encoding
 lstm_model_without_onehot = keras.Sequential([
     layers.Bidirectional(layers.LSTM(256, activation='tanh', return_sequences=True), 
                         input_shape=(n_input, X_scaled_without_onehot.shape[1])),
@@ -1079,16 +1104,7 @@ lstm_model_without_onehot = keras.Sequential([
     layers.Dense(1)
 ])
 
-
-lstm_model_without_onehot.compile(optimizer=optimizer2, loss='mean_squared_error', metrics=[MeanSquaredError(), MeanAbsoluteError(), R2Score()])
-
-
-history2_without_onehot = lstm_model_without_onehot.fit(train_generator_without_onehot, epochs=20, 
-                                                   validation_data=test_generator_without_onehot,
-                                                   callbacks=[reduce_lr], verbose=1)
-
-
-
+# Definicja modelu RNN bez one-hot encoding
 rnn_model_without_onehot = keras.Sequential([
     layers.SimpleRNN(128, activation='tanh', return_sequences=True, input_shape=(n_input, X_scaled_without_onehot.shape[1])),
     layers.Dropout(0.2),
@@ -1097,12 +1113,18 @@ rnn_model_without_onehot = keras.Sequential([
     layers.Dense(1)
 ])
 
-rnn_model_without_onehot.compile(optimizer=optimizer2, loss='mean_squared_error', metrics=[MeanSquaredError(), MeanAbsoluteError(), R2Score()])
+# Kompilacja modeli bez one-hot encoding
+lstm_model_without_onehot.compile(
+    optimizer=optimizer2,
+    loss='mean_squared_error',
+    metrics=[MeanSquaredError(), MeanAbsoluteError(), R2Score()]
+)
 
-# Trening modelu4_without_onehot
-history4_without_onehot = rnn_model_without_onehot.fit(train_generator_without_onehot, epochs=20, 
-                                                   validation_data=test_generator_without_onehot,
-                                                   callbacks=[reduce_lr], verbose=1)
+rnn_model_without_onehot.compile(
+    optimizer=optimizer2,
+    loss='mean_squared_error',
+    metrics=[MeanSquaredError(), MeanAbsoluteError(), R2Score()]
+)
 
 # Predykcje
 y_pred1 = model1.predict(test_generator)
