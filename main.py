@@ -6,7 +6,7 @@ import sklearn.metrics
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import tensorflow as tf
 tf.config.run_functions_eagerly(True)
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model, save_model
 from tensorflow.keras.layers import Dense, LSTM, Dropout, Bidirectional, SimpleRNN
 from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.metrics import MeanSquaredError, MeanAbsoluteError, R2Score
@@ -19,6 +19,7 @@ import matplotlib.dates as mdates
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.regularizers import l2
 from scipy import stats
+import os
 
 # Wczytywanie danych SPX
 df = pd.read_csv('^spx_d.csv')
@@ -360,7 +361,6 @@ print(f"   - Średnia zmienność SPX: {spx_vol.mean():.4f}")
 print(f"   - Średnia zmienność DJIA: {dji_vol.mean():.4f}")
 print(f"   - Stosunek zmienności (SPX/DJIA): {spx_vol.mean()/dji_vol.mean():.4f}")
 
-import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
 
@@ -808,28 +808,73 @@ lstm_model.compile(
     metrics=['mae', 'mape', MeanSquaredError(), MeanAbsoluteError()]
 )
 
-# Trenowanie modelu
-lstm_history = lstm_model.fit(
+# Dodaj po definicji modeli, przed treningiem
+def save_trained_model(model, model_name):
+    """Zapisuje model do pliku"""
+    if not os.path.exists('models'):
+        os.makedirs('models')
+    model.save(f'models/{model_name}.h5')
+    print(f"Model {model_name} został zapisany")
+
+def load_or_train_model(model, model_name, train_data, val_data, epochs, initial_epoch=0):
+    """Wczytuje istniejący model lub trenuje nowy"""
+    model_path = f'models/{model_name}.h5'
+    
+    if os.path.exists(model_path):
+        print(f"Wczytywanie istniejącego modelu {model_name}...")
+        loaded_model = load_model(model_path, compile=True)
+        print(f"Kontynuowanie treningu modelu {model_name} od epoki {initial_epoch}...")
+        history = loaded_model.fit(
+            train_data,
+            validation_data=val_data,
+            epochs=epochs,
+            initial_epoch=initial_epoch,
+            callbacks=callbacks,
+            verbose=1
+        )
+        return loaded_model, history
+    else:
+        print(f"Trenowanie nowego modelu {model_name}...")
+        history = model.fit(
+            train_data,
+            validation_data=val_data,
+            epochs=epochs,
+            callbacks=callbacks,
+            verbose=1
+        )
+        save_trained_model(model, model_name)
+        return model, history
+
+# Zmodyfikuj sekcję treningu LSTM
+print("\n=== Model LSTM ===")
+lstm_model, lstm_history = load_or_train_model(
+    lstm_model,
+    'lstm_model',
     train_generator,
-    epochs=epochs,
-    validation_data=val_generator,
-    callbacks=callbacks,
-    verbose=1
+    val_generator,
+    epochs=50,
+    initial_epoch=0
 )
-
-
-print("\nEwaluacja modelu LSTM:")
-evaluation = lstm_model.evaluate(X_test_spx, y_test_spx, verbose=0)
-print(f"MSE: {evaluation[0]:.6f}")
-print(f"MAE: {evaluation[1]:.6f}")
-print(f"MAPE: {evaluation[2]:.2f}%")
 
 # ====== SEKCJA 3: MODEL RNN ======
 print("\n=== Model RNN ===")
 # Model RNN dla SPX
-sequence_length = 60  # You can adjust this value
-n_features = 1  # Number of features (Close price)
+sequence_length = 60  # Długość sekwencji
+n_features = 1  # Liczba cech (cena zamknięcia)
 
+# Przygotowanie danych dla RNN
+def prepare_sequences(data, sequence_length):
+    X, y = [], []
+    for i in range(len(data) - sequence_length):
+        X.append(data[i:(i + sequence_length)])
+        y.append(data[i + sequence_length])
+    return np.array(X), np.array(y)
+
+# Przygotowanie sekwencji dla SPX
+X_train_spx_seq, y_train_spx_seq = prepare_sequences(X_train_spx, sequence_length)
+X_test_spx_seq, y_test_spx_seq = prepare_sequences(X_test_spx, sequence_length)
+
+# Model RNN
 rnn_model = Sequential([
     SimpleRNN(128, input_shape=(sequence_length, n_features), return_sequences=False),
     Dropout(0.2),
@@ -844,20 +889,15 @@ rnn_model.compile(
     metrics=['mae', 'mse']
 )
 
-# Reshape data for RNN
-X_train_spx_reshaped = X_train_spx.reshape((X_train_spx.shape[0], sequence_length, n_features))
-X_test_spx_reshaped = X_test_spx.reshape((X_test_spx.shape[0], sequence_length, n_features))
-
-# Trenowanie RNN
-print("\nTrenowanie RNN dla SPX...")
-rnn_history = rnn_model.fit(
-    X_train_spx_reshaped,
-    y_train_spx,
+# Zmodyfikuj sekcję treningu RNN
+print("\n=== Model RNN ===")
+rnn_model, rnn_history = load_or_train_model(
+    rnn_model,
+    'rnn_model',
+    X_train_spx_seq,
+    y_train_spx_seq,
     epochs=100,
-    batch_size=32,
-    validation_data=(X_test_spx_reshaped, y_test_spx),
-    callbacks=callbacks,
-    verbose=1
+    initial_epoch=0
 )
 
 # ====== SEKCJA 4: MODEL BLSTM ======
@@ -880,15 +920,15 @@ blstm_model.compile(
     metrics=['mae', 'mape', MeanSquaredError(), MeanAbsoluteError()]
 )
 
-# Trenowanie BLSTM
-print("\nTrenowanie BLSTM dla SPX...")
-blstm_history = blstm_model.fit(
-    X_train_spx, y_train_spx,
+# Zmodyfikuj sekcję treningu BLSTM
+print("\n=== Model BLSTM ===")
+blstm_model, blstm_history = load_or_train_model(
+    blstm_model,
+    'blstm_model',
+    X_train_spx,
+    y_train_spx,
     epochs=50,
-    batch_size=32,
-    validation_split=0.2,
-    callbacks=callbacks,
-    verbose=1
+    initial_epoch=0
 )
 
 # ====== SEKCJA 5: WYKRESY I ANALIZA WYNIKÓW ======
@@ -900,12 +940,12 @@ blstm_pred_spx = blstm_model.predict(X_test_spx)
 # Wykresy dla SPX
 plt.figure(figsize=(15, 10))
 plt.subplot(2, 1, 1)
-plt.plot(lstm_history_spx.history['loss'], label='LSTM - Strata treningowa')
-plt.plot(lstm_history_spx.history['val_loss'], label='LSTM - Strata walidacyjna')
-plt.plot(rnn_history_spx.history['loss'], label='RNN - Strata treningowa')
-plt.plot(rnn_history_spx.history['val_loss'], label='RNN - Strata walidacyjna')
-plt.plot(blstm_history_spx.history['loss'], label='BLSTM - Strata treningowa')
-plt.plot(blstm_history_spx.history['val_loss'], label='BLSTM - Strata walidacyjna')
+plt.plot(lstm_history.history['loss'], label='LSTM - Strata treningowa')
+plt.plot(lstm_history.history['val_loss'], label='LSTM - Strata walidacyjna')
+plt.plot(rnn_history.history['loss'], label='RNN - Strata treningowa')
+plt.plot(rnn_history.history['val_loss'], label='RNN - Strata walidacyjna')
+plt.plot(blstm_history.history['loss'], label='BLSTM - Strata treningowa')
+plt.plot(blstm_history.history['val_loss'], label='BLSTM - Strata walidacyjna')
 plt.title('Porównanie strat podczas treningu - SPX')
 plt.xlabel('Epoka')
 plt.ylabel('Strata (MSE)')
@@ -928,10 +968,10 @@ plt.show()
 # Wykresy dla DJIA
 plt.figure(figsize=(15, 10))
 plt.subplot(2, 1, 1)
-plt.plot(lstm_history_dji.history['loss'], label='LSTM - Strata treningowa')
-plt.plot(lstm_history_dji.history['val_loss'], label='LSTM - Strata walidacyjna')
-plt.plot(rnn_history_dji.history['loss'], label='RNN - Strata treningowa')
-plt.plot(rnn_history_dji.history['val_loss'], label='RNN - Strata walidacyjna')
+plt.plot(lstm_history.history['loss'], label='LSTM - Strata treningowa')
+plt.plot(lstm_history.history['val_loss'], label='LSTM - Strata walidacyjna')
+plt.plot(rnn_history.history['loss'], label='RNN - Strata treningowa')
+plt.plot(rnn_history.history['val_loss'], label='RNN - Strata walidacyjna')
 plt.title('Porównanie strat podczas treningu - DJIA')
 plt.xlabel('Epoka')
 plt.ylabel('Strata (MSE)')
