@@ -732,9 +732,9 @@ def convert_to_days(date_str, min_date):
     return (date - min_date).days
 
 # Przygotowanie danych X i y
-X = df[features_with_onehot].values
-X_without_onehot = df[['Close']].values
-y = df[target].values
+X = df[features_with_onehot].values.reshape(-1, 1)
+X_without_onehot = df[['Close']].values.reshape(-1, 1)
+y = df[target].values.reshape(-1, 1)
 
 # ====== SEKCJA 1: PRZYGOTOWANIE DANYCH DLA MODELI ======
 
