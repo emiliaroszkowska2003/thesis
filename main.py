@@ -49,6 +49,47 @@ reduce_lr = ReduceLROnPlateau(
 
 callbacks = [early_stopping, reduce_lr]
 
+def mse_entropy(data, m=5, tau=2, scale=1):
+    """
+    Oblicza entropię MSE (Multiscale Entropy) dla danych czasowych.
+    
+    Parametry:
+    data: array-like, dane wejściowe
+    m: int, długość wzorca
+    tau: int, opóźnienie czasowe
+    scale: int, skala czasowa
+    
+    Zwraca:
+    float: wartość entropii MSE
+    """
+    scaled_data = data[::scale]
+    returns = np.diff(scaled_data) / scaled_data[:-1]
+    returns = (returns - np.mean(returns)) / np.std(returns)
+    
+    patterns = []
+    for i in range(len(returns) - (m-1)*tau):
+        pattern = returns[i:i + m*tau:tau]
+        if len(pattern) == m:
+            patterns.append(pattern)
+    
+    if not patterns:
+        return 0
+    
+    patterns = np.array(patterns)
+    permutations = []
+    
+    for pattern in patterns:
+        sorted_indices = np.argsort(pattern)
+        perm = np.zeros_like(sorted_indices)
+        perm[sorted_indices] = np.arange(len(sorted_indices))
+        permutations.append(perm)
+    
+    unique_perms, counts = np.unique(permutations, axis=0, return_counts=True)
+    probs = counts / len(permutations)
+    entropy = -np.sum(probs * np.log(probs))
+    
+    return entropy
+
 def market_complexity(close_prices, window=20):
     epsilon = 1e-10  # Dodanie definicji epsilon na początku funkcji
     complexities = []
@@ -92,36 +133,6 @@ def market_complexity(close_prices, window=20):
         complexities = (complexities - np.mean(complexities)) / np.std(complexities)
     
     return complexities
-
-# Funkcja obliczająca entropię MTP
-def mse_entropy(data, m=5, tau=2, scale=1):
-    scaled_data = data[::scale]
-    returns = np.diff(scaled_data) / scaled_data[:-1]
-    returns = (returns - np.mean(returns)) / np.std(returns)
-    
-    patterns = []
-    for i in range(len(returns) - (m-1)*tau):
-        pattern = returns[i:i + m*tau:tau]
-        if len(pattern) == m:
-            patterns.append(pattern)
-    
-    if not patterns:
-        return 0
-    
-    patterns = np.array(patterns)
-    permutations = []
-    
-    for pattern in patterns:
-        sorted_indices = np.argsort(pattern)
-        perm = np.zeros_like(sorted_indices)
-        perm[sorted_indices] = np.arange(len(sorted_indices))
-        permutations.append(perm)
-    
-    unique_perms, counts = np.unique(permutations, axis=0, return_counts=True)
-    probs = counts / len(permutations)
-    entropy = -np.sum(probs * np.log(probs))
-    
-    return entropy
 
 # Definicja skal i list do przechowywania entropii
 scales = [1, 2, 4, 8, 16]
