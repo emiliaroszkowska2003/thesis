@@ -752,6 +752,18 @@ dji_data = df2[features].values
 dji_scaler = MinMaxScaler()
 dji_scaled = dji_scaler.fit_transform(dji_data)
 
+# Przygotowanie danych X i y dla modeli
+X = df[features].values
+X_without_onehot = df[['Close']].values
+y = df[target].values
+
+# Skalowanie danych
+scaler_X = StandardScaler()
+scaler_y = StandardScaler()
+X_scaled = scaler_X.fit_transform(X)
+X_scaled_without_onehot = scaler_X.fit_transform(X_without_onehot)
+y_scaled = scaler_y.fit_transform(y)
+
 # Podział na zbiory treningowe i walidacyjne
 train_size = int(len(spx_scaled) * 0.8)
 val_size = len(spx_scaled) - train_size
@@ -803,6 +815,17 @@ y_train_spx, y_test_spx = y_spx[:train_size_spx], y_spx[train_size_spx:]
 train_size_dji = int(len(X_dji) * 0.8)
 X_train_dji, X_test_dji = X_dji[:train_size_dji], X_dji[train_size_dji:]
 y_train_dji, y_test_dji = y_dji[:train_size_dji], y_dji[train_size_dji:]
+
+# Dodatkowe skalowanie danych dla modeli
+X = df[features].values
+X_without_onehot = df[['Close']].values
+y = df[target].values
+
+scaler_X = StandardScaler()
+scaler_y = StandardScaler()
+X_scaled = scaler_X.fit_transform(X)
+X_scaled_without_onehot = scaler_X.fit_transform(X_without_onehot)
+y_scaled = scaler_y.fit_transform(y)
 
 # ====== SEKCJA 2: MODEL LSTM ======
 print("\n=== Model LSTM ===")
