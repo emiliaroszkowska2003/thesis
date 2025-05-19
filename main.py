@@ -878,6 +878,10 @@ X_test_spx_seq, y_test_spx_seq = prepare_sequences(X_test_spx, sequence_length)
 X_train_spx_seq = X_train_spx_seq.reshape((X_train_spx_seq.shape[0], X_train_spx_seq.shape[1], 1))
 X_test_spx_seq = X_test_spx_seq.reshape((X_test_spx_seq.shape[0], X_test_spx_seq.shape[1], 1))
 
+# Sprawdzenie wymiarów
+print(f"Wymiary X_train_spx_seq: {X_train_spx_seq.shape}")
+print(f"Wymiary y_train_spx_seq: {y_train_spx_seq.shape}")
+
 # Model RNN
 rnn_model = Sequential([
     SimpleRNN(128, input_shape=(sequence_length, n_features), return_sequences=False),
