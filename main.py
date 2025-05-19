@@ -852,7 +852,7 @@ lstm_model, lstm_history = load_or_train_model(
     'lstm_model',
     train_generator,
     val_generator,
-    epochs=50,
+    epochs=20,
     initial_epoch=0
 )
 
@@ -873,6 +873,10 @@ def prepare_sequences(data, sequence_length):
 # Przygotowanie sekwencji dla SPX
 X_train_spx_seq, y_train_spx_seq = prepare_sequences(X_train_spx, sequence_length)
 X_test_spx_seq, y_test_spx_seq = prepare_sequences(X_test_spx, sequence_length)
+
+# Reshape danych do wymaganego formatu [samples, time steps, features]
+X_train_spx_seq = X_train_spx_seq.reshape((X_train_spx_seq.shape[0], X_train_spx_seq.shape[1], 1))
+X_test_spx_seq = X_test_spx_seq.reshape((X_test_spx_seq.shape[0], X_test_spx_seq.shape[1], 1))
 
 # Model RNN
 rnn_model = Sequential([
@@ -896,7 +900,7 @@ rnn_model, rnn_history = load_or_train_model(
     'rnn_model',
     X_train_spx_seq,
     y_train_spx_seq,
-    epochs=100,
+    epochs=20,
     initial_epoch=0
 )
 
@@ -927,7 +931,7 @@ blstm_model, blstm_history = load_or_train_model(
     'blstm_model',
     X_train_spx,
     y_train_spx,
-    epochs=50,
+    epochs=20,
     initial_epoch=0
 )
 
