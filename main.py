@@ -62,8 +62,15 @@ def mse_entropy(data, m=5, tau=2, scale=1):
     Zwraca:
     float: wartość entropii MSE
     """
+    # Konwersja danych do 1D jeśli są 2D
+    if len(data.shape) > 1:
+        data = data.flatten()
+        
     scaled_data = data[::scale]
+    # Upewniamy się, że mamy odpowiednie wymiary
+    scaled_data = scaled_data.reshape(-1)
     returns = np.diff(scaled_data) / scaled_data[:-1]
+    returns = returns.reshape(-1)
     returns = (returns - np.mean(returns)) / np.std(returns)
     
     patterns = []
@@ -141,8 +148,8 @@ dji_entropies = []
 
 # Obliczenie entropii dla surowych danych
 for scale in scales:
-    spx_entropies.append(mse_entropy(df['Close'].values.reshape(-1, 1), m=5, tau=2, scale=scale))
-    dji_entropies.append(mse_entropy(df2['Close'].values.reshape(-1, 1), m=5, tau=2, scale=scale))
+    spx_entropies.append(mse_entropy(df['Close'].values, m=5, tau=2, scale=scale))
+    dji_entropies.append(mse_entropy(df2['Close'].values, m=5, tau=2, scale=scale))
 
 # Wykres entropii MSE
 plt.figure(figsize=(12, 6))
