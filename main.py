@@ -141,8 +141,8 @@ dji_entropies = []
 
 # Obliczenie entropii dla surowych danych
 for scale in scales:
-    spx_entropies.append(mse_entropy(df['Close'].values, m=5, tau=2, scale=scale))
-    dji_entropies.append(mse_entropy(df2['Close'].values, m=5, tau=2, scale=scale))
+    spx_entropies.append(mse_entropy(df['Close'].values.reshape(-1, 1), m=5, tau=2, scale=scale))
+    dji_entropies.append(mse_entropy(df2['Close'].values.reshape(-1, 1), m=5, tau=2, scale=scale))
 
 # Wykres entropii MSE
 plt.figure(figsize=(12, 6))
@@ -179,8 +179,8 @@ periods = [
 
 print("\nAnaliza dla podokresów:")
 for period_name, start, end in periods:
-    period_spx = df['Close'].values[start:end]
-    period_dji = df2['Close'].values[start:end]
+    period_spx = df['Close'].values[start:end].reshape(-1, 1)
+    period_dji = df2['Close'].values[start:end].reshape(-1, 1)
     
     print(f"\n{period_name}:")
     print("Skala\tSPX\t\tDJIA\t\tRóżnica")
@@ -193,8 +193,8 @@ for period_name, start, end in periods:
         print(f"{scale}\t{spx_ent:.4f}\t\t{dji_ent:.4f}\t\t{diff:.4f}")
 
 # Obliczanie złożoności dla SPX i DJIA
-spx_complexity = np.array(market_complexity(df['Close'].values))
-dji_complexity = np.array(market_complexity(df2['Close'].values))
+spx_complexity = np.array(market_complexity(df['Close'].values.reshape(-1, 1)))
+dji_complexity = np.array(market_complexity(df2['Close'].values.reshape(-1, 1)))
 
 # Wypisanie wyników złożoności
 print(f"\nŚrednia złożoność SPX: {np.mean(spx_complexity):.4f}")
@@ -494,7 +494,7 @@ def simple_cross_correlation(x, y, max_lag=30):
 max_lag = 60  # Zwiększony zakres opóźnień
 
 # Obliczenie macierzy korelacji krzyżowej
-correlation_matrix = cross_correlation_matrix(df['Close'].values, df2['Close'].values, max_lag=max_lag)
+correlation_matrix = cross_correlation_matrix(df['Close'].values.reshape(-1, 1), df2['Close'].values.reshape(-1, 1), max_lag=max_lag)
 
 # Wykres macierzy korelacji krzyżowej
 plt.figure(figsize=(15, 12))
@@ -522,7 +522,7 @@ def correlation_significance_test(corr, length):
     return t_stat, p_value
 
 # Obliczenie korelacji krzyżowej i lagów przed tworzeniem wykresów
-correlations, lags = simple_cross_correlation(df['Close'].values, df2['Close'].values, max_lag=30)
+correlations, lags = simple_cross_correlation(df['Close'].values.reshape(-1, 1), df2['Close'].values.reshape(-1, 1), max_lag=30)
 
 # Wykres korelacji krzyżowej
 plt.figure(figsize=(12, 8))
@@ -631,7 +631,7 @@ plt.plot(x, p, 'k', linewidth=2)
 
 
 # Obliczenie korelacji krzyżowej i lagów przed tworzeniem wykresów
-correlations, lags = simple_cross_correlation(df['Close'].values, df2['Close'].values, max_lag=30)
+correlations, lags = simple_cross_correlation(df['Close'].values.reshape(-1, 1), df2['Close'].values.reshape(-1, 1), max_lag=30)
 max_corr = np.max(np.abs(correlations))
 
 # Wykres korelacji krzyżowej
@@ -683,14 +683,14 @@ else:
 print("\nAnaliza korelacji dla różnych opóźnień:")
 for lag in [-10, -5, 0, 5, 10]:
     if lag < 0:
-        x_shifted = spx_normalized[-lag:]
-        y_shifted = dji_normalized[:len(x_shifted)]
+        x_shifted = spx_normalized.values.reshape(-1, 1)[-lag:]
+        y_shifted = dji_normalized.values.reshape(-1, 1)[:len(x_shifted)]
     elif lag > 0:
-        x_shifted = spx_normalized[:-lag]
-        y_shifted = dji_normalized[lag:len(x_shifted)+lag]
+        x_shifted = spx_normalized.values.reshape(-1, 1)[:-lag]
+        y_shifted = dji_normalized.values.reshape(-1, 1)[lag:len(x_shifted)+lag]
     else:
-        x_shifted = spx_normalized
-        y_shifted = dji_normalized[:len(spx_normalized)]
+        x_shifted = spx_normalized.values.reshape(-1, 1)
+        y_shifted = dji_normalized.values.reshape(-1, 1)[:len(spx_normalized)]
     
     # Ensure equal lengths
     min_len = min(len(x_shifted), len(y_shifted))
@@ -743,19 +743,19 @@ sequence_length = 60  # Długość sekwencji
 features = ['Close']  # Używamy tylko ceny zamknięcia
 
 # Przygotowanie danych SPX
-spx_data = df[features].values
+spx_data = df[features].values.reshape(-1, 1)
 spx_scaler = MinMaxScaler()
 spx_scaled = spx_scaler.fit_transform(spx_data)
 
 # Przygotowanie danych DJIA
-dji_data = df2[features].values
+dji_data = df2[features].values.reshape(-1, 1)
 dji_scaler = MinMaxScaler()
 dji_scaled = dji_scaler.fit_transform(dji_data)
 
 # Przygotowanie danych X i y dla modeli
-X = df[features].values
-X_without_onehot = df[['Close']].values
-y = df[target].values
+X = df[features].values.reshape(-1, 1)
+X_without_onehot = df[['Close']].values.reshape(-1, 1)
+y = df[target].values.reshape(-1, 1)
 
 # Skalowanie danych
 scaler_X = StandardScaler()
@@ -794,8 +794,8 @@ def prepare_data(data, look_back=30):
 # Normalizacja danych
 scaler_spx = MinMaxScaler()
 scaler_dji = MinMaxScaler()
-spx_scaled = scaler_spx.fit_transform(df[['Close']].values)
-dji_scaled = scaler_dji.fit_transform(df2[['Close']].values)
+spx_scaled = scaler_spx.fit_transform(df[['Close']].values.reshape(-1, 1))
+dji_scaled = scaler_dji.fit_transform(df2[['Close']].values.reshape(-1, 1))
 
 # Parametry modeli
 look_back = 30
@@ -817,9 +817,9 @@ X_train_dji, X_test_dji = X_dji[:train_size_dji], X_dji[train_size_dji:]
 y_train_dji, y_test_dji = y_dji[:train_size_dji], y_dji[train_size_dji:]
 
 # Dodatkowe skalowanie danych dla modeli
-X = df[features].values
-X_without_onehot = df[['Close']].values
-y = df[target].values
+X = df[features].values.reshape(-1, 1)
+X_without_onehot = df[['Close']].values.reshape(-1, 1)
+y = df[target].values.reshape(-1, 1)
 
 scaler_X = StandardScaler()
 scaler_y = StandardScaler()
@@ -1319,8 +1319,8 @@ print(f"R2 Score: {rnn_model_without_onehot.evaluate(test_generator_without_oneh
 print(f"Mean Squared Error: {rnn_model_without_onehot.evaluate(test_generator_without_onehot, verbose=0)[0]}")
 print(f"Mean Absolute Error: {rnn_model_without_onehot.evaluate(test_generator_without_onehot, verbose=0)[1]}")
 
-X_dji = df2.loc[:, features_with_onehot].values
-y_dji = df2.loc[:, target].values
+X_dji = df2.loc[:, features_with_onehot].values.reshape(-1, 1)
+y_dji = df2.loc[:, target].values.reshape(-1, 1)
 
 scaler_X_dji = StandardScaler()
 scaler_y_dji = StandardScaler()
